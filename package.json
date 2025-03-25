@@ -1,20 +1,27 @@
 {
   "name": "quanlymuonsach-frontend",
   "version": "1.0.0",
-  "description": "",
-  "license": "ISC",
-  "author": "",
-  "type": "commonjs",
-  "main": "index.js",
+  "private": true,
   "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "lint": "vue-cli-service lint",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "axios": "^1.8.4",
-    "bootstrap": "^5.3.3",
-    "chart.js": "^4.4.8",
-    "vue-chartjs": "^5.3.2",
-    "vue-router": "^4.5.0",
-    "vuex": "^4.1.0"
+    "axios": "^1.6.0",
+    "bootstrap": "^5.3.0",
+    "chart.js": "^4.4.0",
+    "core-js": "^3.8.3",
+    "vue": "^3.2.13",
+    "vue-chartjs": "^5.2.0",
+    "vue-router": "^4.0.3",
+    "vuex": "^4.0.0"
+  },
+  "devDependencies": {
+    "@vue/cli-plugin-babel": "~5.0.0",
+    "@vue/cli-plugin-router": "~5.0.0",
+    "@vue/cli-plugin-vuex": "~5.0.0",
+    "@vue/cli-service": "~5.0.0"
   }
 }
