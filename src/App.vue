@@ -1,17 +1,15 @@
 <template>
-    <div id="app">
+    <default-layout>
         <router-view />
-    </div>
+    </default-layout>
 </template>
 
 <script>
+import DefaultLayout from './layouts/defaultLayout.vue';
+
 export default {
-    name: 'App',
+    components: {
+        DefaultLayout,
+    },
 };
 </script>
-
-<style>
-body {
-    font-family: Arial, sans-serif;
-}
-</style>
