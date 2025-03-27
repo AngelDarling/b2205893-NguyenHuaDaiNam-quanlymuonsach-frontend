@@ -18,10 +18,12 @@
                     <router-link class="nav-link text-white" to="/manage-nhan-vien">Quản lý nhân viên</router-link>
                 </li>
                 <li class="nav-item">
-                    <router-link class="nav-link text-white" to="/manage-nha-xuat-ban">Quản lý nhà xuất bản</router-link>
+                    <router-link class="nav-link text-white" to="/manage-nha-xuat-ban">Quản lý nhà xuất
+                        bản</router-link>
                 </li>
                 <li class="nav-item">
-                    <router-link class="nav-link text-white" to="/manage-theo-doi-muon-sach">Theo dõi mượn sách</router-link>
+                    <router-link class="nav-link text-white" to="/manage-theo-doi-muon-sach">Theo dõi mượn
+                        sách</router-link>
                 </li>
             </ul>
         </div>
@@ -31,10 +33,19 @@
             <h2 class="mb-4">Quản Lý Sách</h2>
             <div class="mb-3 d-flex justify-content-between">
                 <div>
-                    <button class="btn btn-primary" @click="showAddModal">Thêm sách</button>
+                    <button class="btn btn-primary me-2" @click="showAddModal">Thêm sách</button>
+                    <button class="btn btn-success me-2" @click="filterSach('HienHanh')"
+                        :class="{ 'active': filterStatus === 'HienHanh' }">
+                        Sách hiện hành
+                    </button>
+                    <button class="btn btn-warning" @click="filterSach('DaXoa')"
+                        :class="{ 'active': filterStatus === 'DaXoa' }">
+                        Sách đã xóa
+                    </button>
                 </div>
                 <div>
-                    <input type="text" v-model="searchQuery" class="form-control" placeholder="Tìm kiếm sách theo tên..." @input="fetchSach" />
+                    <input type="text" v-model="searchQuery" class="form-control"
+                        placeholder="Tìm kiếm sách theo tên..." @input="fetchSach" />
                 </div>
             </div>
             <div v-if="loading" class="text-center">
@@ -59,6 +70,7 @@
                             <th>Năm Xuất Bản</th>
                             <th>Nhà Xuất Bản</th>
                             <th>Tác Giả</th>
+                            <th>Trạng Thái</th> <!-- Thêm cột Trạng Thái -->
                             <th>Hành động</th>
                         </tr>
                     </thead>
@@ -71,9 +83,14 @@
                             <td>{{ sach.NamXuatBan }}</td>
                             <td>{{ sach.nhaXuatBan ? sach.nhaXuatBan.TenNXB : "Không xác định" }}</td>
                             <td>{{ sach.TacGia }}</td>
+                            <td>{{ sach.TrangThai === "HienHanh" ? "Hiện hành" : "Đã xóa" }}</td>
                             <td>
-                                <button class="btn btn-warning btn-sm me-2" @click="editSach(sach)">Sửa</button>
-                                <button class="btn btn-danger btn-sm" @click="deleteSach(sach._id)">Xóa</button>
+                                <button v-if="sach.TrangThai === 'HienHanh'" class="btn btn-warning btn-sm me-2"
+                                    @click="editSach(sach)">Sửa</button>
+                                <button v-if="sach.TrangThai === 'HienHanh'" class="btn btn-danger btn-sm"
+                                    @click="softDeleteSach(sach._id)">Xóa</button>
+                                <button v-if="sach.TrangThai === 'DaXoa'" class="btn btn-success btn-sm"
+                                    @click="restoreSach(sach._id)">Khôi phục</button>
                             </td>
                         </tr>
                     </tbody>
@@ -116,21 +133,25 @@
                                 </div>
                                 <div class="mb-3">
                                     <label for="donGia" class="form-label">Đơn Giá</label>
-                                    <input id="donGia" v-model="currentSach.DonGia" type="number" class="form-control" required />
+                                    <input id="donGia" v-model="currentSach.DonGia" type="number" class="form-control"
+                                        required />
                                 </div>
                                 <div class="mb-3">
                                     <label for="soQuyen" class="form-label">Số Quyển</label>
-                                    <input id="soQuyen" v-model="currentSach.SoQuyen" type="number" class="form-control" required />
+                                    <input id="soQuyen" v-model="currentSach.SoQuyen" type="number" class="form-control"
+                                        required />
                                 </div>
                                 <div class="mb-3">
                                     <label for="namXuatBan" class="form-label">Năm Xuất Bản</label>
-                                    <input id="namXuatBan" v-model="currentSach.NamXuatBan" type="number" class="form-control" required />
+                                    <input id="namXuatBan" v-model="currentSach.NamXuatBan" type="number"
+                                        class="form-control" required />
                                 </div>
                                 <div class="mb-3">
                                     <label for="maNXB" class="form-label">Nhà Xuất Bản</label>
                                     <select id="maNXB" v-model="currentSach.MaNXB" class="form-control" required>
                                         <option value="" disabled>Chọn nhà xuất bản</option>
-                                        <option v-for="nhaXuatBan in nhaXuatBanList" :key="nhaXuatBan._id" :value="nhaXuatBan.MaNXB">
+                                        <option v-for="nhaXuatBan in nhaXuatBanList" :key="nhaXuatBan._id"
+                                            :value="nhaXuatBan.MaNXB">
                                             {{ nhaXuatBan.TenNXB }}
                                         </option>
                                     </select>
@@ -161,7 +182,7 @@ export default {
     data() {
         return {
             sachList: [],
-            nhaXuatBanList: [], // Danh sách nhà xuất bản để chọn
+            nhaXuatBanList: [],
             loading: false,
             errorMessage: "",
             showModal: false,
@@ -175,12 +196,14 @@ export default {
                 NamXuatBan: 0,
                 MaNXB: "",
                 TacGia: "",
+                TrangThai: "HienHanh", // Thêm trạng thái mặc định
             },
             searchQuery: "",
             currentPage: 1,
-            limit: 4, // Đặt limit là 4 để khớp với hình ảnh
+            limit: 6,
             total: 0,
             totalPages: 1,
+            filterStatus: "HienHanh", // Trạng thái lọc mặc định là HienHanh
         };
     },
     mounted() {
@@ -202,7 +225,7 @@ export default {
 
                 const response = await axios.get("http://localhost:3000/nhaXuatBan", {
                     headers: { Authorization: `Bearer ${token}` },
-                    params: { limit: 1000 }, // Lấy tất cả nhà xuất bản
+                    params: { limit: 1000 },
                 });
                 this.nhaXuatBanList = response.data.nhaXuatBans;
             } catch (err) {
@@ -223,6 +246,7 @@ export default {
                         search: this.searchQuery,
                         page: this.currentPage,
                         limit: this.limit,
+                        trangThai: this.filterStatus, // Thêm tham số lọc trạng thái
                     },
                 });
                 this.sachList = response.data.sachs;
@@ -236,6 +260,11 @@ export default {
                 this.loading = false;
             }
         },
+        filterSach(status) {
+            this.filterStatus = status;
+            this.currentPage = 1; // Reset về trang đầu khi thay đổi bộ lọc
+            this.fetchSach();
+        },
         showAddModal() {
             this.isEditMode = false;
             this.currentSach = {
@@ -246,6 +275,7 @@ export default {
                 NamXuatBan: 0,
                 MaNXB: "",
                 TacGia: "",
+                TrangThai: "HienHanh", // Trạng thái mặc định khi thêm mới
             };
             this.showModal = true;
         },
@@ -271,8 +301,11 @@ export default {
                 if (this.currentSach.SoQuyen <= 0) {
                     throw new Error("Số quyển phải lớn hơn 0.");
                 }
+                const namHienTai = new Date().getFullYear();
                 if (this.currentSach.NamXuatBan <= 0) {
                     throw new Error("Năm xuất bản phải lớn hơn 0.");
+                } else if (this.currentSach.NamXuatBan > namHienTai) {
+                    throw new Error("Năm xuất bản không thể lớn hơn năm hiện tại.");
                 }
                 if (!this.currentSach.MaNXB) {
                     throw new Error("Nhà xuất bản không được để trống.");
@@ -323,7 +356,7 @@ export default {
                 this.isLoading = false;
             }
         },
-        async deleteSach(id) {
+        async softDeleteSach(id) {
             try {
                 const token = localStorage.getItem("token");
                 if (!token) {
@@ -339,13 +372,51 @@ export default {
                 });
 
                 if (result.isConfirmed) {
-                    await axios.delete(`http://localhost:3000/sach/${id}`, {
+                    await axios.put(`http://localhost:3000/sach/soft-delete/${id}`, {}, {
                         headers: { Authorization: `Bearer ${token}` },
                     });
                     Swal.fire({
                         icon: "success",
                         title: "Thành công!",
-                        text: "Sách đã được xóa thành công.",
+                        text: "Sách đã được chuyển sang trạng thái đã xóa.",
+                        timer: 1500,
+                        showConfirmButton: false,
+                    });
+                    this.fetchSach();
+                }
+            } catch (err) {
+                const message = err.response?.data?.message || err.message || "Đã xảy ra lỗi.";
+                Swal.fire({
+                    icon: "error",
+                    title: "Lỗi!",
+                    text: message,
+                    confirmButtonText: "OK",
+                });
+            }
+        },
+        async restoreSach(id) {
+            try {
+                const token = localStorage.getItem("token");
+                if (!token) {
+                    throw new Error("Không tìm thấy token. Vui lòng đăng nhập lại.");
+                }
+
+                const result = await Swal.fire({
+                    title: "Bạn có chắc chắn muốn khôi phục sách này?",
+                    icon: "warning",
+                    showCancelButton: true,
+                    confirmButtonText: "Khôi phục",
+                    cancelButtonText: "Hủy",
+                });
+
+                if (result.isConfirmed) {
+                    await axios.put(`http://localhost:3000/sach/restore/${id}`, {}, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    Swal.fire({
+                        icon: "success",
+                        title: "Thành công!",
+                        text: "Sách đã được khôi phục thành công.",
                         timer: 1500,
                         showConfirmButton: false,
                     });
@@ -449,6 +520,15 @@ export default {
     background-color: #0056b3;
 }
 
+.btn-success {
+    background-color: #28a745;
+    border: none;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+}
+
 .btn-warning {
     background-color: #ffc107;
     border: none;
@@ -474,6 +554,11 @@ export default {
 
 .btn-secondary:hover {
     background-color: #5a6268;
+}
+
+.btn.active {
+    font-weight: bold;
+    border: 2px solid #fff;
 }
 
 .modal {

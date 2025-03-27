@@ -144,6 +144,11 @@
                                     <input id="dienThoai" v-model="currentDocGia.DienThoai" class="form-control"
                                         required />
                                 </div>
+                                <div class="mb-3">
+                                    <label for="password" class="form-label">Mật khẩu</label>
+                                    <input id="password" v-model="currentDocGia.Password" type="password"
+                                        class="form-control" :required="!isEditMode" placeholder="Nhập mật khẩu" />
+                                </div>
                                 <button type="submit" class="btn btn-primary" :disabled="isLoading">
                                     {{ isLoading ? "Đang lưu..." : "Lưu" }}
                                 </button>
@@ -272,7 +277,9 @@ export default {
                 if (!/^\d{10}$/.test(this.currentDocGia.DienThoai)) {
                     throw new Error("Điện thoại phải là số và có đúng 10 chữ số.");
                 }
-
+                if (!this.isEditMode && !this.currentDocGia.Password) {
+                    throw new Error("Mật khẩu không được để trống.");
+                }
                 const token = localStorage.getItem("token");
                 if (!token) {
                     throw new Error("Không tìm thấy token. Vui lòng đăng nhập lại.");

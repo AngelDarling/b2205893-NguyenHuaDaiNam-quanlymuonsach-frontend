@@ -3,6 +3,7 @@
     <div class="home-container">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2 class="mb-0">Danh Sách Sách</h2>
+            <button class="btn btn-info" @click="showLichSuMuonSachModal">Lịch sử mượn sách</button>
         </div>
         <div class="mb-3 d-flex align-items-center justify-content-center gap-3">
             <div style="width: 300px;">
@@ -26,7 +27,7 @@
         <div v-else-if="errorMessage" class="alert alert-danger" role="alert">
             {{ errorMessage }}
         </div>
-        <div v-else-if="sachList.length === 0" class="text-center">
+        <div v-else-if="filteredSachList.length === 0" class="text-center">
             <p>Không có sách nào để hiển thị.</p>
         </div>
         <div v-else>
@@ -44,7 +45,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="sach in sachList" :key="sach._id">
+                    <tr v-for="sach in filteredSachList" :key="sach._id">
                         <td>{{ sach.MaSach }}</td>
                         <td>{{ sach.TenSach }}</td>
                         <td>{{ formatCurrency(sach.DonGia) }}</td>
@@ -65,7 +66,7 @@
             <!-- Phân trang -->
             <div class="d-flex justify-content-between align-items-center mt-3">
                 <div>
-                    <p>Hiển thị {{ sachList.length }} / {{ total }} sách</p>
+                    <p>Hiển thị {{ filteredSachList.length }} / {{ total }} sách</p>
                 </div>
                 <div>
                     <button class="btn btn-secondary me-2" @click="prevPage" :disabled="currentPage === 1">
@@ -117,6 +118,58 @@
                 </div>
             </div>
         </div>
+
+        <!-- Modal lịch sử mượn sách -->
+        <div class="modal fade" id="lichSuMuonSachModal" tabindex="-1" aria-labelledby="lichSuMuonSachModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="lichSuMuonSachModalLabel">Lịch Sử Mượn Sách</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div v-if="loadingLichSu" class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Đang tải...</span>
+                            </div>
+                        </div>
+                        <div v-else-if="errorMessageLichSu" class="alert alert-danger" role="alert">
+                            {{ errorMessageLichSu }}
+                        </div>
+                        <div v-else-if="lichSuMuonSachList.length === 0" class="text-center">
+                            <p>Bạn chưa mượn sách nào.</p>
+                        </div>
+                        <div v-else>
+                            <table class="table table-bordered table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Mã Độc Giả</th>
+                                        <th>Tên Sách</th>
+                                        <th>Số quyển mượn</th>
+                                        <th>Tổng Tiền</th>
+                                        <th>Ngày Mượn</th>
+                                        <th>Ngày Trả</th>
+                                        <th>Tình trạng</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="muonSach in lichSuMuonSachList" :key="muonSach._id">
+                                        <td>{{ muonSach.MaDocGia }}</td>
+                                        <td>{{ getTenSach(muonSach.MaSach) }}</td>
+                                        <td>{{ muonSach.SoLuong }}</td>
+                                        <td>{{ formatCurrency(getTongTien(muonSach)) }}</td>
+                                        <td>{{ formatDate(muonSach.NgayMuon) }}</td>
+                                        <td>{{ formatDate(muonSach.NgayTra) }}</td>
+                                        <td>{{ getTinhTrang(muonSach) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -130,32 +183,57 @@ export default {
         return {
             sachList: [],
             nhaXuatBanList: [],
+            lichSuMuonSachList: [],
             loading: false,
+            loadingLichSu: false,
             errorMessage: "",
+            errorMessageLichSu: "",
             searchQuery: "",
             selectedNXB: "",
             currentPage: 1,
-            limit: 5,
+            limit: 8,
             total: 0,
             totalPages: 1,
             selectedSach: null,
             ngayMuon: "",
             ngayTra: "",
-            soLuongMuon: 1, // Số lượng mượn mặc định là 1
-            totalPrice: 0, // Tổng giá tiền
+            soLuongMuon: 1,
+            totalPrice: 0,
             muonSachModal: null,
+            lichSuMuonSachModal: null,
         };
+    },
+    computed: {
+        filteredSachList() {
+            return this.sachList.filter(sach => sach.TrangThai !== "DaXoa");
+        },
     },
     mounted() {
         const token = localStorage.getItem("token");
         const role = localStorage.getItem("role");
-        if (!token || role !== "docGia") {
+        if (!token) {
             this.$router.push("/dang-nhap");
+            Swal.fire({
+                icon: "error",
+                title: "Lỗi!",
+                text: "Không tìm thấy token. Vui lòng đăng nhập.",
+                confirmButtonText: "OK",
+            });
+            return;
+        }
+        if (role !== "docGia") {
+            this.$router.push("/dang-nhap");
+            Swal.fire({
+                icon: "error",
+                title: "Lỗi!",
+                text: "Trang này chỉ dành cho độc giả. Vui lòng đăng nhập bằng tài khoản độc giả.",
+                confirmButtonText: "OK",
+            });
             return;
         }
         this.fetchNhaXuatBan();
         this.fetchSach();
-        this.initializeModal();
+        this.initializeModals();
     },
     watch: {
         searchQuery() {
@@ -206,6 +284,28 @@ export default {
                 this.handleError(err);
             }
         },
+        async fetchLichSuMuonSach() {
+            try {
+                this.loadingLichSu = true;
+                const token = localStorage.getItem("token");
+                const maDocGia = localStorage.getItem("maDocGia");
+                if (!token || !maDocGia) {
+                    throw new Error("Không tìm thấy token hoặc mã độc giả. Vui lòng đăng nhập lại.");
+                }
+                const response = await axios.get("http://localhost:3000/theoDoiMuonSach", {
+                    headers: { Authorization: `Bearer ${token}` },
+                    params: {
+                        search: maDocGia,
+                        limit: 1000,
+                    },
+                });
+                this.lichSuMuonSachList = response.data.theoDoiMuonSachs || [];
+            } catch (err) {
+                this.errorMessageLichSu = err.response?.data?.message || err.message || "Không thể tải lịch sử mượn sách.";
+            } finally {
+                this.loadingLichSu = false;
+            }
+        },
         prevPage() {
             if (this.currentPage > 1) {
                 this.currentPage--;
@@ -223,6 +323,25 @@ export default {
                 style: "currency",
                 currency: "VND",
             }).format(value);
+        },
+        formatDate(dateString) {
+            if (!dateString) return "";
+            const date = new Date(dateString);
+            return date.toLocaleDateString("vi-VN");
+        },
+        getTinhTrang(muonSach) {
+            return muonSach.DaTra ? "Đã trả" : "Chưa trả";
+        },
+        getTenSach(maSach) {
+            const sach = this.sachList.find(s => s.MaSach === maSach);
+            return sach ? sach.TenSach : "Không tìm thấy sách";
+        },
+        getTongTien(muonSach) {
+            const sach = this.sachList.find(s => s.MaSach === muonSach.MaSach);
+            if (sach && muonSach.SoLuong) {
+                return sach.DonGia * muonSach.SoLuong;
+            }
+            return 0;
         },
         logout() {
             localStorage.removeItem("token");
@@ -247,19 +366,33 @@ export default {
                     text: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
                     confirmButtonText: "OK",
                 });
+            } else if (message.includes("Chỉ nhân viên mới có quyền thực hiện hành động này")) {
+                Swal.fire({
+                    icon: "error",
+                    title: "Lỗi!",
+                    text: "Bạn không có quyền thực hiện hành động này. Vui lòng đăng nhập bằng tài khoản nhân viên.",
+                    confirmButtonText: "OK",
+                });
             } else {
                 this.errorMessage = message;
             }
         },
-        initializeModal() {
-            const modalElement = document.getElementById("muonSachModal");
-            this.muonSachModal = new Modal(modalElement);
-            modalElement.addEventListener("hidden.bs.modal", () => {
+        initializeModals() {
+            const muonSachModalElement = document.getElementById("muonSachModal");
+            this.muonSachModal = new Modal(muonSachModalElement);
+            muonSachModalElement.addEventListener("hidden.bs.modal", () => {
                 this.selectedSach = null;
                 this.ngayMuon = "";
                 this.ngayTra = "";
                 this.soLuongMuon = 1;
                 this.totalPrice = 0;
+            });
+
+            const lichSuModalElement = document.getElementById("lichSuMuonSachModal");
+            this.lichSuMuonSachModal = new Modal(lichSuModalElement);
+            lichSuModalElement.addEventListener("hidden.bs.modal", () => {
+                this.lichSuMuonSachList = [];
+                this.errorMessageLichSu = "";
             });
         },
         showMuonSachModal(sach) {
@@ -269,6 +402,10 @@ export default {
             this.soLuongMuon = 1;
             this.calculateTotalPrice();
             this.muonSachModal.show();
+        },
+        showLichSuMuonSachModal() {
+            this.fetchLichSuMuonSach();
+            this.lichSuMuonSachModal.show();
         },
         calculateTotalPrice() {
             if (this.selectedSach && this.soLuongMuon) {
@@ -295,7 +432,6 @@ export default {
                     throw new Error("Số lượng mượn không hợp lệ.");
                 }
 
-                // Gửi yêu cầu mượn sách
                 const response = await axios.post(
                     "http://localhost:3000/theoDoiMuonSach",
                     {
@@ -309,18 +445,6 @@ export default {
                         headers: { Authorization: `Bearer ${token}` },
                     }
                 );
-
-                // // Cập nhật số lượng sách trong CSDL
-                // await axios.put(
-                //     `http://localhost:3000/sach/${this.selectedSach._id}`,
-                //     {
-                //         ...this.selectedSach,
-                //         SoQuyen: this.selectedSach.SoQuyen - this.soLuongMuon,
-                //     },
-                //     {
-                //         headers: { Authorization: `Bearer ${token}` },
-                //     }
-                // );
 
                 Swal.fire({
                     icon: "success",
@@ -398,6 +522,16 @@ export default {
 
 .btn-success:hover {
     background-color: #218838;
+}
+
+.btn-info {
+    background-color: #17a2b8;
+    border: none;
+    color: white;
+}
+
+.btn-info:hover {
+    background-color: #138496;
 }
 
 .gap-3 {

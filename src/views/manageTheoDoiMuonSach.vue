@@ -56,37 +56,47 @@
                     <thead class="table-dark">
                         <tr>
                             <th>Mã Độc Giả</th>
-                            <th>Mã Sách</th>
-                            <th>Số quyển mượn</th> <!-- Thêm cột Số quyển mượn -->
+                            <th>Tên Sách</th>
+                            <th>Số quyển mượn</th>
+                            <th>Tổng Tiền</th>
                             <th>Ngày Mượn</th>
                             <th>Ngày Trả</th>
-                            <th>Tình trạng</th> <!-- Thêm cột Tình trạng -->
+                            <th>Tình trạng</th>
                             <th>Hành động</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-for="muonSach in muonSachList" :key="muonSach._id">
                             <td>{{ muonSach.MaDocGia }}</td>
-                            <td>{{ muonSach.MaSach }}</td>
-                            <td>{{ muonSach.SoLuong }}</td> <!-- Hiển thị số lượng mượn -->
+                            <td>{{ getTenSach(muonSach.MaSach) }}</td>
+                            <td>{{ muonSach.SoLuong }}</td>
+                            <td>{{ formatCurrency(getTongTien(muonSach)) }}</td>
                             <td>{{ formatDate(muonSach.NgayMuon) }}</td>
                             <td>{{ formatDate(muonSach.NgayTra) }}</td>
                             <td>
-                                <!-- Hiển thị tình trạng -->
                                 {{ getTinhTrang(muonSach) }}
                             </td>
                             <td>
-                                <button class="btn btn-warning btn-sm me-2" @click="editMuonSach(muonSach)">Sửa</button>
-                                <button class="btn btn-danger btn-sm me-2"
-                                    @click="deleteMuonSach(muonSach._id)">Xóa</button>
-                                <button v-if="!muonSach.DaTra" class="btn btn-success btn-sm"
-                                    @click="markAsReturned(muonSach._id)">
-                                    Đã trả
-                                </button>
+                                <template v-if="!isSachDeleted(muonSach.MaSach)">
+                                    <button class="btn btn-warning btn-sm me-2"
+                                        @click="editMuonSach(muonSach)">Sửa</button>
+                                    <button class="btn btn-danger btn-sm me-2"
+                                        @click="deleteMuonSach(muonSach._id)">Xóa</button>
+                                    <button v-if="!muonSach.DaTra" class="btn btn-success btn-sm"
+                                        @click="markAsReturned(muonSach._id)">
+                                        Đã trả
+                                    </button>
+                                </template>
+                                <span v-else class="text-muted">Sách đã bị xóa</span>
                             </td>
                         </tr>
                     </tbody>
                 </table>
+
+                <!-- Tổng doanh thu -->
+                <div class="mt-3">
+                    <h5>Tổng doanh thu: {{ formatCurrency(tongDoanhThu) }}</h5>
+                </div>
 
                 <!-- Phân trang -->
                 <div class="d-flex justify-content-between align-items-center mt-3">
@@ -130,18 +140,19 @@
                                     <label for="maSach" class="form-label">Mã Sách</label>
                                     <select id="maSach" v-model="currentMuonSach.MaSach" class="form-control" required>
                                         <option value="" disabled>Chọn mã sách</option>
-                                        <option v-for="sach in sachList" :key="sach._id" :value="sach.MaSach">
+                                        <option v-for="sach in availableSachList" :key="sach._id" :value="sach.MaSach">
                                             {{ sach.MaSach }} - {{ sach.TenSach }}
                                         </option>
                                     </select>
                                 </div>
-
                                 <div class="mb-3">
-                                    <label for="soLuong" class="form-label">Số quyển mượn</label>
+                                    <label for="soLuong" class="form-label">
+                                        Số quyển mượn (Còn lại: {{ getSoQuyenConLai(currentMuonSach.MaSach) }})
+                                    </label>
                                     <input id="soLuong" v-model.number="currentMuonSach.SoLuong" type="number"
-                                        class="form-control" min="1" required />
+                                        class="form-control" :min="1" :max="getSoQuyenConLai(currentMuonSach.MaSach)"
+                                        required />
                                 </div>
-
                                 <div class="mb-3">
                                     <label for="ngayMuon" class="form-label">Ngày Mượn</label>
                                     <input id="ngayMuon" v-model="currentMuonSach.NgayMuon" type="date"
@@ -174,8 +185,8 @@ export default {
     data() {
         return {
             muonSachList: [],
-            sachList: [], // Danh sách sách để chọn
-            docGiaList: [], // Danh sách độc giả để chọn
+            sachList: [],
+            docGiaList: [],
             loading: false,
             errorMessage: "",
             showModal: false,
@@ -186,15 +197,28 @@ export default {
                 MaSach: "",
                 NgayMuon: "",
                 NgayTra: "",
-                SoLuong: 1, // Mặc định là 1
-                DaTra: false, // Thêm DaTra
+                SoLuong: 1,
+                DaTra: false,
             },
-            searchQuery: "", // Từ khóa tìm kiếm
-            currentPage: 1, // Trang hiện tại
-            limit: 10, // Số bản ghi mỗi trang
-            total: 0, // Tổng số bản ghi
-            totalPages: 1, // Tổng số trang
+            searchQuery: "",
+            currentPage: 1,
+            limit: 10,
+            total: 0,
+            totalPages: 1,
         };
+    },
+    computed: {
+        // Tính tổng doanh thu từ tất cả các bản ghi mượn sách
+        tongDoanhThu() {
+            return this.muonSachList.reduce((total, muonSach) => {
+                const tien = this.getTongTien(muonSach);
+                return total + (tien || 0);
+            }, 0);
+        },
+        // Lọc danh sách sách chỉ hiển thị sách chưa bị xóa
+        availableSachList() {
+            return this.sachList.filter(sach => sach.TrangThai !== "DaXoa");
+        },
     },
     mounted() {
         const token = localStorage.getItem("token");
@@ -216,11 +240,11 @@ export default {
                 const [sachRes, docGiaRes] = await Promise.all([
                     axios.get("http://localhost:3000/sach", {
                         headers: { Authorization: `Bearer ${token}` },
-                        params: { limit: 1000 }, // Lấy tất cả sách (có thể tối ưu nếu cần)
+                        params: { limit: 1000 },
                     }),
                     axios.get("http://localhost:3000/docGia", {
                         headers: { Authorization: `Bearer ${token}` },
-                        params: { limit: 1000 }, // Lấy tất cả độc giả
+                        params: { limit: 1000 },
                     }),
                 ]);
 
@@ -257,7 +281,6 @@ export default {
                 this.loading = false;
             }
         },
-        
         showAddModal() {
             this.isEditMode = false;
             this.currentMuonSach = {
@@ -265,19 +288,19 @@ export default {
                 MaSach: "",
                 NgayMuon: "",
                 NgayTra: "",
-                SoLuong: 1, // Mặc định là 1
-                DaTra: false, // Đảm bảo DaTra mặc định là false
+                SoLuong: 1,
+                DaTra: false,
             };
             this.showModal = true;
         },
         editMuonSach(muonSach) {
             this.isEditMode = true;
             this.currentMuonSach = {
-                 ...muonSach,
+                ...muonSach,
                 NgayMuon: new Date(muonSach.NgayMuon).toISOString().split("T")[0],
                 NgayTra: muonSach.NgayTra ? new Date(muonSach.NgayTra).toISOString().split("T")[0] : "",
-                SoLuong: muonSach.SoLuong || 1, // Đảm bảo SoLuong có giá trị 
-                DaTra: muonSach.DaTra || false, // Đảm bảo DaTra có giá trị
+                SoLuong: muonSach.SoLuong || 1,
+                DaTra: muonSach.DaTra || false,
             };
             this.showModal = true;
         },
@@ -296,12 +319,15 @@ export default {
                     throw new Error("Ngày mượn không được để trống.");
                 }
                 if (!this.currentMuonSach.NgayTra) {
-                    throw new Error("Ngày trả không được để trống."); // Thêm validation cho Ngày Trả
+                    throw new Error("Ngày trả không được để trống.");
                 }
                 if (this.currentMuonSach.NgayTra && new Date(this.currentMuonSach.NgayTra) < new Date(this.currentMuonSach.NgayMuon)) {
                     throw new Error("Ngày trả không được nhỏ hơn ngày mượn.");
                 }
-
+                const soQuyenConLai = this.getSoQuyenConLai(this.currentMuonSach.MaSach);
+                if (this.currentMuonSach.SoLuong > soQuyenConLai) {
+                    throw new Error(`Số quyển mượn (${this.currentMuonSach.SoLuong}) vượt quá số quyển còn lại (${soQuyenConLai}).`);
+                }
                 const token = localStorage.getItem("token");
                 if (!token) {
                     throw new Error("Không tìm thấy token. Vui lòng đăng nhập lại.");
@@ -360,7 +386,6 @@ export default {
                 });
 
                 if (result.isConfirmed) {
-                    // Lấy bản ghi mượn sách trước khi xóa để kiểm tra DaTra
                     const muonSach = this.muonSachList.find((item) => item._id === id);
                     const isDaTra = muonSach ? muonSach.DaTra : false;
                     await axios.delete(`http://localhost:3000/theoDoiMuonSach/${id}`, {
@@ -376,7 +401,7 @@ export default {
                         showConfirmButton: false,
                     });
                     this.fetchMuonSach();
-                    this.fetchSachAndDocGia(); // Cập nhật lại danh sách sách để phản ánh số lượng mới
+                    this.fetchSachAndDocGia();
                 }
             } catch (err) {
                 const message = err.response?.data?.message || err.message || "Đã xảy ra lỗi.";
@@ -425,11 +450,9 @@ export default {
             return date.toLocaleDateString("vi-VN");
         },
         getTinhTrang(muonSach) {
-            // Chỉ hiển thị "Đã trả" nếu DaTra là true
             return muonSach.DaTra ? "Đã trả" : "Chưa trả";
         },
         async markAsReturned(id) {
-            // console.log("ID gửi lên API:", id); // Kiểm tra ID
             try {
                 const token = localStorage.getItem("token");
                 if (!token) {
@@ -473,6 +496,33 @@ export default {
                     confirmButtonText: "OK",
                 });
             }
+        },
+        getTenSach(maSach) {
+            const sach = this.sachList.find(s => s.MaSach === maSach);
+            return sach ? sach.TenSach : "Không tìm thấy sách";
+        },
+        getTongTien(muonSach) {
+            const sach = this.sachList.find(s => s.MaSach === muonSach.MaSach);
+            if (sach && muonSach.SoLuong) {
+                return sach.DonGia * muonSach.SoLuong;
+            }
+            return 0;
+        },
+        formatCurrency(value) {
+            if (!value) return "0 VNĐ";
+            return new Intl.NumberFormat("vi-VN", {
+                style: "currency",
+                currency: "VND",
+            }).format(value);
+        },
+        getSoQuyenConLai(maSach) {
+            if (!maSach) return 0;
+            const sach = this.sachList.find(s => s.MaSach === maSach);
+            return sach ? sach.SoQuyen : 0;
+        },
+        isSachDeleted(maSach) {
+            const sach = this.sachList.find(s => s.MaSach === maSach);
+            return sach ? sach.TrangThai === "DaXoa" : true;
         },
     },
 };
