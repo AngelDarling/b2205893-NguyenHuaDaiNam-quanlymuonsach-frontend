@@ -1,3 +1,4 @@
+<!-- views/dangKy.vue -->
 <template>
     <div class="register-container">
         <div class="card register-card shadow-lg">
@@ -55,13 +56,15 @@
                     </div>
                     <div class="d-grid">
                         <button type="submit" class="btn btn-primary btn-block" :disabled="isLoading">
-                            {{ isLoading ? 'Đang đăng ký...' : 'Đăng Ký' }}
+                            {{ isLoading ? "Đang đăng ký..." : "Đăng Ký" }}
                         </button>
                     </div>
                 </form>
 
                 <div class="text-center mt-3">
-                    <p class="text-muted">Đã có tài khoản? <router-link to="/dang-nhap">Đăng nhập ngay</router-link></p>
+                    <p class="text-muted">
+                        Đã có tài khoản? <router-link to="/dang-nhap">Đăng nhập ngay</router-link>
+                    </p>
                 </div>
             </div>
         </div>
@@ -69,22 +72,23 @@
 </template>
 
 <script>
-import AuthService from '../services/auth.service';
+import axios from "axios";
+import Swal from "sweetalert2"; // Thêm sweetalert2
 
 export default {
     data() {
         return {
             docGiaData: {
-                MaDocGia: '',
-                HoLot: '',
-                Ten: '',
-                NgaySinh: '',
-                Phai: 'Nam',
-                DiaChi: '',
-                DienThoai: '',
-                Password: '',
+                MaDocGia: "",
+                HoLot: "",
+                Ten: "",
+                NgaySinh: "",
+                Phai: "Nam",
+                DiaChi: "",
+                DienThoai: "",
+                Password: "",
             },
-            errorMessage: '',
+            errorMessage: "",
             isLoading: false,
         };
     },
@@ -92,12 +96,30 @@ export default {
         async dangKy() {
             try {
                 this.isLoading = true;
-                this.errorMessage = '';
+                this.errorMessage = "";
 
-                await AuthService.register(this.docGiaData);
-                this.$router.push('/dang-nhap');
+                await axios.post("http://localhost:3000/docGia", this.docGiaData); // Không cần token
+                Swal.fire({
+                    icon: "success",
+                    title: "Thành công!",
+                    text: "Đăng ký thành công! Vui lòng đăng nhập.",
+                    timer: 1500,
+                    showConfirmButton: false,
+                }).then(() => {
+                    this.$router.push("/dang-nhap");
+                });
             } catch (err) {
-                this.errorMessage = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.';
+                const message = err.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại.";
+                if (message.includes("MaDocGia đã tồn tại")) {
+                    Swal.fire({
+                        icon: "error",
+                        title: "Lỗi!",
+                        text: "Đã tồn tại mã độc giả, yêu cầu đổi mã khác.",
+                        confirmButtonText: "OK",
+                    });
+                } else {
+                    this.errorMessage = message;
+                }
             } finally {
                 this.isLoading = false;
             }
